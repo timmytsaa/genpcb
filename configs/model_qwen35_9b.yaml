@@ -1,0 +1,8 @@
+extends: base.yaml
+
+model:
+  family: qwen
+  # TODO(驗證清單): 到 HF 確認 base 權重確切 ID（docs/generator-model-selection.md §4）
+  model_id: Qwen/Qwen3.5-9B
+  max_seq_len: 32768
+  vllm_fast_inference: true

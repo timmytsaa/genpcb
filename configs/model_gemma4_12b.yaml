@@ -1,0 +1,10 @@
+extends: base.yaml
+
+model:
+  family: gemma
+  # TODO(驗證清單): base/pt 權重是否存在未確認，-it 為暫定（docs/generator-model-selection.md §2.5）
+  model_id: google/gemma-4-12b-it
+  max_seq_len: 32768
+  # 2026-06 現況：Unsloth 上 Gemma 4 的 GRPO 不支援 vLLM fast inference，
+  # 上游修好後把這個 flag 翻成 true 即完成切換（docs/generator-model-selection.md §2.5）
+  vllm_fast_inference: false

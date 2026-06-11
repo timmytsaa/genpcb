@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+
+# 大型資料與 run 輸出不進版控（僅根目錄 data/，不含 src/genpcb/data/）
+/data/
+experiments/*
+!experiments/.gitkeep
+wandb/
+
+# Notebook
+.ipynb_checkpoints/
