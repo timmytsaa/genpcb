@@ -28,9 +28,12 @@ reward:
   rudy_bins: 32
 
 grpo:
-  group_size: 16
-  steps: 2000
-  lr: 5.0e-7
-  kl_coeff: 0.001
-  max_new_tokens: 4096
-  audit_every_steps: 50      # 真值 audit 週期（100% 非同步驗證另有產線）
+  group_size: 8              # num_generations（每 prompt 生幾個，Colab 友善）
+  n_prompts: 512             # 程序化 prompt 數（GRPO 自生 completion，不需標籤）
+  max_steps: 200             # 煙霧測試規模
+  lr: 1.0e-6                 # GRPO 用遠小於 SFT 的 lr
+  beta: 0.001                # KL 係數
+  parse_fail: -10.0          # malformed floor；GRPO 用較小幅度，避免 group 標準化壓掉品質訊號
+  max_prompt_length: 1024
+  max_completion_length: 512
+  audit_every_steps: 50      # 真值 audit 週期（需 KiCad routing reward，本期未啟用）

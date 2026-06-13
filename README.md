@@ -20,8 +20,9 @@ python -m genpcb.train.smoke_tokenizer --config configs/model_qwen35_9b.yaml --c
 # 產生 SFT 種子資料（不需 GPU；或用 notebooks/prepare_data.ipynb）
 python -m genpcb.data.build --n 3000 --out data/sft/boards.jsonl --tokenizer google/gemma-4-12b-it
 
-# 訓練（Colab，建議）：notebooks/train_sft_colab.ipynb —— 自成一本的 QLoRA SFT
-#   (產資料 → 4-bit 載入 Gemma 4 12B → LoRA → 訓練 → 用 reward 檢查推論)
+# 訓練（Colab，建議）：自成一本的 notebook，依序跑
+#   notebooks/train_sft_colab.ipynb   QLoRA SFT（產資料→載入→LoRA→訓練→reward 檢查）
+#   notebooks/train_grpo_colab.ipynb  GRPO（接續 SFT adapter，直接最佳化 placement reward）
 
 # 訓練（本機 script，GPU）：另裝 train extras
 pip install -e .[train]
