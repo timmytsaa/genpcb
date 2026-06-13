@@ -11,6 +11,11 @@ sft:
   lr: 1.0e-5
   per_device_batch: 4
   grad_accum: 8
+  val_frac: 0.1                    # 以 netlist 為單位切（防洩漏，data-engine.md §3）
+  logging_steps: 10
+  eval_steps: 50
+  save_steps: 50
+  save_total_limit: 3
 
 grpo:
   group_size: 16

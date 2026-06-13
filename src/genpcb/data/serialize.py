@@ -27,6 +27,60 @@ def board_to_dsl(board: Board, grid: float = 0.1) -> str:
     return "\n".join(lines) + "\n"
 
 
+def dsl_to_sft_example(text: str) -> dict[str, str]:
+    """把 canonical DSL 切成 placement 任務的 (prompt, completion)。
+
+    - prompt = 板框 B + 元件宣告 D（ref + footprint，無座標）+ netlist N + "PLACE"
+    - completion = 擺位 P（ref x y rot side）
+
+    這就是 GRPO 的 prompt 格式（同 netlist → 同 prompt → 同 group）。純字串轉換、
+    不經 mm 量化，故對 canonical text 精確可逆（見 sft_example_to_dsl）。
+    """
+    blines, dlines, plines, nlines = [], [], [], []
+    for line in text.splitlines():
+        t = line.split()
+        if not t:
+            continue
+        if t[0] == "B":
+            blines.append(line)
+        elif t[0] == "C":
+            _, ref, fp, x, y, rot, side = t
+            dlines.append(f"D {ref} {fp}")
+            plines.append(f"P {ref} {x} {y} {rot} {side}")
+        elif t[0] == "N":
+            nlines.append(line)
+    prompt = "\n".join(blines + dlines + nlines) + "\nPLACE\n"
+    completion = "\n".join(plines) + "\n"
+    return {"prompt": prompt, "completion": completion}
+
+
+def sft_example_to_dsl(prompt: str, completion: str) -> str:
+    """還原 dsl_to_sft_example：(prompt, completion) → canonical B/C/N DSL。
+
+    GRPO 端解析 policy 輸出（completion）成 board 走這條：prompt 給元件宣告與
+    netlist、completion 給擺位，合併成 canonical DSL 後即可 dsl_to_board()。
+    """
+    decls: dict[str, str] = {}
+    blines, nlines = [], []
+    for line in prompt.splitlines():
+        t = line.split()
+        if not t:
+            continue
+        if t[0] == "B":
+            blines.append(line)
+        elif t[0] == "D":
+            decls[t[1]] = t[2]
+        elif t[0] == "N":
+            nlines.append(line)
+    clines = []
+    for line in completion.splitlines():
+        t = line.split()
+        if t and t[0] == "P":
+            ref, x, y, rot, side = t[1], t[2], t[3], t[4], t[5]
+            clines.append(f"C {ref} {decls[ref]} {x} {y} {rot} {side}")
+    return "\n".join(blines + clines + nlines) + "\n"
+
+
 def dsl_to_board(text: str) -> Board:
     comps: list[Component] = []
     nets: list[Net] = []

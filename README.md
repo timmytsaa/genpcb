@@ -22,8 +22,8 @@ python -m genpcb.data.build --n 3000 --out data/sft/boards.jsonl --tokenizer goo
 
 # 訓練端（GPU，另裝 train extras 與 unsloth）
 pip install -e .[train]
-python -m genpcb.train.sft  --config configs/model_qwen35_9b.yaml
-python -m genpcb.train.grpo --config configs/model_qwen35_9b.yaml
+python -m genpcb.train.sft  --config configs/model_gemma4_12b.yaml          # placement SFT，斷線可加 --resume
+python -m genpcb.train.grpo --config configs/model_gemma4_12b.yaml          # 待 Phase 0 reward
 ```
 
 ## 結構

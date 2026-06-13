@@ -48,6 +48,32 @@ N N000 L1.2 J2.6 R2.2
 - 實測 token 長度（Gemma 4 tokenizer，v0 種子板）：mean ~509、p95 ~1017、max ~1029，
   **全部遠低於 32k**。相對原始 .kicad_pcb 約 75× 壓縮。
 
+## Placement 任務的 prompt / completion 切分
+
+SFT 與 GRPO 共用同一個任務格式（`dsl_to_sft_example` / `sft_example_to_dsl`）：
+
+- **prompt** = 板框 `B` + 元件宣告 `D <ref> <fp>`（無座標）+ netlist `N` + `PLACE`
+- **completion** = 擺位 `P <ref> <x> <y> <rot> <side>`
+
+```
+（prompt）                          （completion）
+B 201 141 2 0.1                     P U1 47 92 0 T
+D U1 QFN32                          P C1 154 22 0 T
+D C1 C0402                          P C2 13 101 90 T
+...                                 ...
+N GND C1.2 ... U1.1 ...
+N +3V3 ...
+PLACE
+```
+
+兩點關鍵：
+
+1. **prompt 不含座標 → 同 netlist+元件集的所有擺位變體 prompt 相同**。其 hash 即
+   `netlist_sig`，用作切分單位（防洩漏）與 GRPO 的 group 鍵（同 prompt = 同 group，
+   對齊 group-relative advantage）。
+2. 純字串轉換、對 canonical DSL **精確可逆**（`build.py` / 測試已驗證 round-trip）。
+   SFT 用 completion-only loss（只在擺位上算）。
+
 ## 與檢查器（reward）的橋接
 
 - 生成器輸出 DSL；reward 端要 `.kicad_pcb`（pcbnew/Freerouting/DRC 吃這個）。

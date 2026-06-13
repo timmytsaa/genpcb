@@ -19,8 +19,12 @@ from genpcb.rewards import compute_reward  # noqa: F401  (Phase 0 介面)
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
+    ap.add_argument("--output-root", default=None, help="覆蓋 experiments 根目錄（Colab：Drive）")
+    ap.add_argument("--resume", action="store_true", help="從最新 checkpoint 續訓")
     args = ap.parse_args()
     cfg = load_config(args.config)
+    if args.output_root:
+        cfg["paths"]["experiments"] = args.output_root
 
     adapter = ModelAdapter(cfg)
     model, tokenizer = adapter.load_for_training()
