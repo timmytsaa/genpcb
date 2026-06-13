@@ -17,6 +17,16 @@ sft:
   save_steps: 50
   save_total_limit: 3
 
+# Tier-1 確定性 placement reward 權重（docs/placement-routing-checker.md §2.1）
+# 硬違規（overlap/bounds）權重遠大於連續項，使其主導
+reward:
+  w_overlap: 8.0     # courtyard 重疊面積比（硬）
+  w_bounds: 8.0      # 板框越界（硬）
+  w_hpwl: 1.0        # 正規化 HPWL（連續）
+  w_rudy: 0.0        # RUDY 峰值未校準/無界 → 暫不入 reward（仍算出供 audit），校準後再開
+  w_decap: 0.5       # decoupling cap 距 IC（領域規則）
+  rudy_bins: 32
+
 grpo:
   group_size: 16
   steps: 2000

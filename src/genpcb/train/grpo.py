@@ -13,7 +13,18 @@ import argparse
 
 from genpcb.config import load_config
 from genpcb.models.adapter import ModelAdapter
-from genpcb.rewards import compute_reward  # noqa: F401  (Phase 0 介面)
+from genpcb.rewards import reward_from_completion
+
+
+def make_reward_fn(weights: dict):
+    """TRL GRPOTrainer 的 reward 函式：(prompts, completions) → list[float]。
+
+    每個 completion 經 reward_from_completion 解析+評分；malformed/incomplete → floor。
+    reward 函式本身純 Python、已本機測試（見 rewards/__init__.py）。
+    """
+    def reward_fn(prompts, completions, **_):
+        return [reward_from_completion(p, c, weights) for p, c in zip(prompts, completions)]
+    return reward_fn
 
 
 def main() -> None:
@@ -29,15 +40,19 @@ def main() -> None:
     adapter = ModelAdapter(cfg)
     model, tokenizer = adapter.load_for_training()
 
-    # TODO(Phase 3):
-    #   1. prompt 集 = netlist/規格描述（同 prompt 群組 = 同 netlist，對齊 ranking 訓練）
-    #   2. reward_fn: 解析 completion → 落地 .kicad_pcb → compute_reward()
-    #      （解析失敗 = 大負 reward，不丟例外）
-    #   3. trl.GRPOTrainer(..., num_generations=cfg["grpo"]["group_size"],
-    #        **adapter.grpo_trainer_kwargs())
-    #   4. 每 cfg["grpo"]["audit_every_steps"] 步：top-K rollout 丟真值產線、
-    #      偵測 surrogate 漂移（placement-routing-checker.md §6）
-    raise NotImplementedError("GRPO 迴圈待 Phase 0 reward 與 SFT checkpoint 就緒後實作")
+    reward_fn = make_reward_fn(cfg["reward"])  # 已實作且本機測試（Tier-1 placement）
+
+    # TODO(Phase 3，需 GPU）:
+    #   1. prompt 集 = SFT 同款 placement prompt（同 netlist = 同 group，dsl_to_sft_example）
+    #   2. trl.GRPOTrainer(model, reward_funcs=reward_fn,
+    #        num_generations=cfg["grpo"]["group_size"], **adapter.grpo_trainer_kwargs())
+    #   3. 每 cfg["grpo"]["audit_every_steps"] 步：top-K rollout 丟真值產線（Freerouting，
+    #      需 KiCad 環境）、偵測 surrogate 漂移（placement-routing-checker.md §6）
+    #   4. Tier-1 routing/DRC reward（dsl→.kicad_pcb）就緒後併入 reward_fn
+    raise NotImplementedError(
+        "GRPO 訓練迴圈（GPU）待接 TRL GRPOTrainer；reward_fn 已就緒。"
+        "需 SFT checkpoint 暖身後啟動。"
+    )
 
 
 if __name__ == "__main__":
