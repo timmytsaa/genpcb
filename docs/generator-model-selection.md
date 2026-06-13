@@ -93,6 +93,12 @@ genpcb/
 - **分工**：Colab 只做 SFT/GRPO（GPU 活）。資料引擎——Freerouting/openEMS/FEniCSx 標註 farm——是 CPU 批次活，留在本機或其他機器跑，Colab 只吃已標註完的資料（從 Drive/HF datasets 讀）。
 - 分析 notebook 留在本機，讀 W&B 與 Drive artifacts；launcher 不做分析。
 
+**訓練 notebook 形態（使用者偏好）**：SFT 用 `notebooks/train_sft_colab.ipynb`——
+自成一本、訓練邏輯（4-bit 載入 / LoRA / SFTConfig / 訓練 / 推論）攤在 cell 裡可直接改
+（標準 transformers+bitsandbytes+peft+trl QLoRA，不用 unsloth）。這是對 §3.5「notebook
+不放邏輯」的刻意放寬，限訓練迭代期；資料生成 / DSL 切分 / reward 仍 import 自 src 不複製。
+推論 cell 直接用 `reward_from_completion` 評分，即時看模型有沒有學會輸出合法完整擺位。
+
 ## 3.7 Tokenizer 煙霧測試結果（2026-06-11 實測）
 
 合成板語料 192k chars，實測（`experiments/smoke_tokenizer_*.json`）：
