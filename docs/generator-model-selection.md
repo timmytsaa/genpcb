@@ -110,6 +110,8 @@ genpcb/
 2. **A/B 在 tokenizer 效率上是平手**（1.625 vs 1.621，tok/coord 完全相同）——這項不構成選型差異，勝負交給 SFT loss 與 GRPO 吞吐。
 3. **真正的發現：現代 tokenizer 對座標數字有重稅。** 三個現代 tokenizer 都做 single-digit splitting（為算術能力），一個座標 `105.473` 要 6.57 tokens（gpt2 反而只要 3.25）。後果：40 元件 + 400 segment 的小板原始 S-expr 就要 ~39k tokens，**超過 32k context**。含佈線的完整板用原始格式直接出局；純 placement 輸出（形態 A）約 12–15k tokens 可行但浪費。→ **輸出格式定版必須包含座標壓縮**：格點量化成整數（如 0.05mm 格）、相對座標、或精簡 DSL。這是格式定版（開放問題 #1）的硬資料輸入。
 
+> **已解（2026-06-11）**：開放問題 #1 形態 A 部分定版為 compact placement DSL（[output-format.md](output-format.md)）——只表達 placement+netlist、座標 0.1mm 格點量化成整數。實測 v0 種子板 Gemma tokenizer mean ~509、max ~1029 tokens，相對原始 .kicad_pcb 約 75× 壓縮。
+
 ## 4. 實作前驗證清單
 
 - [ ] HF 上確認 `Qwen3.5-9B` base 權重與授權
