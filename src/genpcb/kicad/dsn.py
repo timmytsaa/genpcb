@@ -38,7 +38,7 @@ def board_to_dsn(board: Board, name: str = "genpcb", width_um: int = 250, cleara
 
     L = [f"(pcb {name}.dsn",
          '  (parser (string_quote ") (space_in_quoted_tokens on) (host_cad "genpcb") (host_version "0.1"))',
-         "  (resolution um 10)",
+         "  (resolution um 1)",          # 1 unit = 1 um；座標 = mm*1000（_um）
          "  (unit um)",
          "  (structure",
          "    (layer F.Cu (type signal) (property (index 0)))",

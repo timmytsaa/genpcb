@@ -9,6 +9,12 @@
 
 from genpcb.kicad.dsn import board_to_dsn, parse_ses_routed_fraction
 from genpcb.kicad.read import kicad_pcb_to_board
+from genpcb.kicad.viz import parse_ses_geometry, plot_routing
 from genpcb.kicad.write import board_to_kicad_pcb
 
-__all__ = ["board_to_kicad_pcb", "kicad_pcb_to_board", "board_to_dsn", "parse_ses_routed_fraction"]
+# route.py 不在此 import（subprocess/Freerouting 環境相依，需要時再 from genpcb.kicad.route import ...）
+
+__all__ = [
+    "board_to_kicad_pcb", "kicad_pcb_to_board", "board_to_dsn",
+    "parse_ses_routed_fraction", "plot_routing", "parse_ses_geometry",
+]
