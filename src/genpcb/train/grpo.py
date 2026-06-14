@@ -15,17 +15,22 @@ from genpcb.config import load_config
 from genpcb.data.procedural import FAMILIES, generate_board
 from genpcb.data.serialize import board_to_dsl, dsl_to_sft_example
 from genpcb.models.adapter import ModelAdapter
-from genpcb.rewards import reward_from_completion
+from genpcb.rewards import reward_from_completion, shaped_reward_from_completion
 
 
-def make_reward_fn(weights: dict, parse_fail: float = -100.0):
+def make_reward_fn(weights: dict, parse_fail: float = -100.0, shaped: bool = True):
     """TRL GRPOTrainer 的 reward 函式：(prompts, completions) → list[float]。
 
-    每個 completion 經 reward_from_completion 解析+評分；malformed/incomplete → floor。
-    reward 函式本身純 Python、已本機測試（見 rewards/__init__.py）。
+    shaped=True（GRPO 預設）：malformed/incomplete 給部分分數，保證恆有梯度往合法爬
+    （rewards.shaped_reward_from_completion；二元 floor 在冷啟動會崩潰）。
+    shaped=False：嚴格二元 floor（給 eval 量合法率用）。
     """
-    def reward_fn(prompts, completions, **_):
-        return [reward_from_completion(p, c, weights, parse_fail) for p, c in zip(prompts, completions)]
+    if shaped:
+        def reward_fn(prompts, completions, **_):
+            return [shaped_reward_from_completion(p, c, weights) for p, c in zip(prompts, completions)]
+    else:
+        def reward_fn(prompts, completions, **_):
+            return [reward_from_completion(p, c, weights, parse_fail) for p, c in zip(prompts, completions)]
     return reward_fn
 
 
@@ -61,7 +66,7 @@ def main() -> None:
     g = cfg["grpo"]
 
     prompts = build_prompts(g["n_prompts"])           # 純 Python、本機可測
-    reward_fn = make_reward_fn(cfg["reward"], parse_fail=g["parse_fail"])
+    reward_fn = make_reward_fn(cfg["reward"], parse_fail=g["parse_fail"], shaped=g.get("shaped", True))
 
     # ── GPU/訓練端；重依賴鎖在此 ──
     import torch
@@ -86,6 +91,7 @@ def main() -> None:
         output_dir=str(out_dir),
         learning_rate=float(g["lr"]),
         beta=float(g["beta"]),
+        temperature=float(g.get("temperature", 0.7)),
         num_generations=g["group_size"],
         per_device_train_batch_size=g["group_size"],
         gradient_accumulation_steps=2,

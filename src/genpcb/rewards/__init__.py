@@ -96,6 +96,50 @@ def reward_from_completion(prompt: str, completion: str, weights: dict | None = 
     return placement_reward(board, weights)[0]   # 真實 reward 的例外不吞，讓 bug 浮現
 
 
+def _is_int(s: str) -> bool:
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+def shaped_reward_from_completion(prompt: str, completion: str, weights: dict | None = None,
+                                  invalid_base: float = -50.0, invalid_span: float = 20.0) -> float:
+    """GRPO 用的「有梯度」reward：對 malformed/incomplete 給部分分數。
+
+    二元 floor（reward_from_completion）在「整組都壞」時 advantage=0、無梯度，是 GRPO
+    冷啟動崩潰的主因。此版改為：
+    - 完全合法且完整 → placement_reward（品質分，∈ 約 [-27, 0]）
+    - 否則 → invalid_base + invalid_span·完整度 − 壞行數（≤ -30，恆低於任何合法板）
+
+    → 即使整組都不合法，「擺對較多元件」者分數較高，policy 永遠有往合法爬的梯度。
+    合法恆勝過不合法（分數帶分隔），故不會獎勵半成品。
+    """
+    declared: dict[str, str] = {}
+    for line in prompt.splitlines():
+        t = line.split()
+        if t and t[0] == "D":
+            declared[t[1]] = t[2]
+    n = max(1, len(declared))
+    good: set[str] = set()
+    malformed = 0
+    for line in completion.splitlines():
+        t = line.split()
+        if not t:
+            continue
+        if (t[0] == "P" and len(t) == 6 and t[1] in declared and t[1] not in good
+                and t[4] in _ROT and t[5] in _SIDE and _is_int(t[2]) and _is_int(t[3])):
+            good.add(t[1])
+        else:
+            malformed += 1
+    completeness = len(good) / n
+    if completeness == 1.0 and malformed == 0:
+        board = dsl_to_board(sft_example_to_dsl(prompt, completion))
+        return placement_reward(board, weights)[0]
+    return invalid_base + invalid_span * completeness - float(malformed)
+
+
 def compute_reward(dsl_text: str | None = None, board_path: str | None = None,
                    weights: dict | None = None) -> float:
     """GRPO 迴圈的 reward 入口。

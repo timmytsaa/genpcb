@@ -32,8 +32,11 @@ grpo:
   n_prompts: 512             # 程序化 prompt 數（GRPO 自生 completion，不需標籤）
   max_steps: 200             # 煙霧測試規模
   lr: 1.0e-6                 # GRPO 用遠小於 SFT 的 lr
-  beta: 0.001                # KL 係數
-  parse_fail: -10.0          # malformed floor；GRPO 用較小幅度，避免 group 標準化壓掉品質訊號
+  beta: 0.0                  # KL 係數：設 0。PEFT 的 KL 參考是 base（非 SFT），beta>0 會把
+                             #   policy 拉回沒學過格式的 base → 格式崩潰。正解是 merge SFT 當參考（待辦）
+  temperature: 0.7           # 取樣溫度：較低 → 取樣 completion 更常合法 → group 有真梯度
+  shaped: true               # malformed 給部分分數（防冷啟動崩潰，見 rewards.shaped_reward_from_completion）
+  parse_fail: -10.0          # 僅 shaped=false 時用
   max_prompt_length: 1024
   max_completion_length: 512
   audit_every_steps: 50      # 真值 audit 週期（需 KiCad routing reward，本期未啟用）
