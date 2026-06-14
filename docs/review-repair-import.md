@@ -59,6 +59,11 @@ P3     對話式 critique（獨立 SFT，可多任務掛同顆模型）
 
 最高槓桿是 **P0 的 parser**：它本來就是 routing reward 的前置，順帶就把「檔案匯入審查」解鎖了。
 
+**P0 進度（2026-06-14）**：`genpcb/kicad/` 已實作純 Python 雙向橋——`board_to_kicad_pcb`
+（IR → 自成一檔的 .kicad_pcb，內嵌近似 pad 幾何）、`kicad_pcb_to_board`（解析回 IR）。
+45 板 round-trip（components/nets/板框）100% 一致。**待 KiCad 環境**：pcbnew/kicad-cli 載入
+驗證、Freerouting 佈線（routing reward）、真實庫 footprint 名→型號對應（file-import 用）。
+
 ## 7. 對現在架構的要求（確認已滿足）
 
 - IR/DSL 維持為唯一交換格式（生成、審查、修改都走它）✓
