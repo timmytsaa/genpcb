@@ -64,7 +64,36 @@ def build_dataset(n_netlists: int, out_dir: str, label_fn: Callable, sa_steps: i
                 "id": sid, "family": fam, "netlist_id": f"{fam}_{seed0 + i}",
                 "variant": variant, "routed_fraction": rf, "n_components": len(bv.components),
             })
-    with open(os.path.join(out_dir, "manifest.jsonl"), "w", encoding="utf-8") as f:
-        for m in manifest:
-            f.write(json.dumps(m, ensure_ascii=False) + "\n")
+    _write_manifest(out_dir, manifest)
     return manifest
+
+
+def _write_manifest(out_dir: str, rows: list[dict]) -> None:
+    with open(os.path.join(out_dir, "manifest.jsonl"), "w", encoding="utf-8") as f:
+        for m in rows:
+            f.write(json.dumps(m, ensure_ascii=False) + "\n")
+
+
+def rebuild_manifest(out_dir: str) -> list[dict]:
+    """從現有 .npz 重建 manifest.jsonl（run 被中斷、manifest 還沒寫時用；不重跑標註）。
+
+    sid 格式 'fam_seed_variant'（fam/variant 皆無底線）→ 直接解析；
+    routed_fraction、n_components 從 .npz 讀。
+    """
+    rows = []
+    for fn in sorted(os.listdir(out_dir)):
+        if not fn.endswith(".npz"):
+            continue
+        parts = fn[:-4].split("_")
+        if len(parts) != 3:
+            continue
+        fam, seed, variant = parts
+        s = np.load(os.path.join(out_dir, fn))
+        rf = float(s["routed_fraction"])
+        rows.append({
+            "id": fn[:-4], "family": fam, "netlist_id": f"{fam}_{seed}",
+            "variant": variant, "routed_fraction": None if rf < 0 else rf,
+            "n_components": int(s["x"].shape[0]),
+        })
+    _write_manifest(out_dir, rows)
+    return rows
