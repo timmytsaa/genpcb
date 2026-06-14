@@ -60,14 +60,15 @@ def board_to_dsn(board: Board, name: str = "genpcb", width_um: int = 250, cleara
             L.append(f"      (pin {pid} {num} {xu} {yu})")
         L.append("    )")
     for (wu, hu), pid in padstacks.items():
+        # SMD pad 只在 F.Cu（元件頂層）→ 連到 B.Cu 須經 via，才會產生真實雙層佈線。
+        # （目前資料元件全為 top side；B-side 元件需 per-side padstack，未來再加。）
         L += [f"    (padstack {pid}",
               f"      (shape (rect F.Cu {-wu // 2} {-hu // 2} {wu // 2} {hu // 2}))",
-              f"      (shape (rect B.Cu {-wu // 2} {-hu // 2} {wu // 2} {hu // 2}))",
               "      (attach off)",
               "    )"]
     L += [f'    (padstack "{_VIA}"',
-          "      (shape (circle F.Cu 600))",
-          "      (shape (circle B.Cu 600))",
+          "      (shape (circle F.Cu 600 0 0))",     # 中心座標為 Specctra 規格必填
+          "      (shape (circle B.Cu 600 0 0))",
           "      (attach off)",
           "    )",
           "  )"]
