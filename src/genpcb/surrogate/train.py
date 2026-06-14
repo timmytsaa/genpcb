@@ -24,8 +24,11 @@ def load_samples(data_dir: str) -> list[dict]:
     for fn in sorted(os.listdir(data_dir)):
         if not fn.endswith(".npz"):
             continue
-        s = np.load(os.path.join(data_dir, fn))
-        rf = float(s["routed_fraction"])
+        try:                                        # 容忍生成中正在寫的檔
+            s = np.load(os.path.join(data_dir, fn))
+            rf = float(s["routed_fraction"])
+        except Exception:
+            continue
         if rf < 0:                                  # -1 = 標註失敗，跳過
             continue
         fam, seed, variant = fn[:-4].split("_")
@@ -132,8 +135,8 @@ def main():
                 best = mae
                 os.makedirs(os.path.dirname(args.out), exist_ok=True)
                 torch.save(model.state_dict(), args.out)
-    print(f"[surrogate] best val MAE {best:.3f} → {args.out}")
-    print("驗收：grouped Spearman ≥ 0.85 才准進 GRPO 迴圈（樣本多時才可靠）")
+    print(f"[surrogate] best val MAE {best:.3f} -> {args.out}")
+    print("驗收 acceptance: grouped Spearman >= 0.85 才准進 GRPO 迴圈（樣本多時才可靠）")
 
 
 if __name__ == "__main__":
