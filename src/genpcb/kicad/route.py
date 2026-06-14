@@ -9,6 +9,7 @@ from __future__ import annotations
 import glob
 import os
 import re
+import shutil
 import signal
 import subprocess
 
@@ -35,7 +36,7 @@ from genpcb.kicad.viz import parse_ses_geometry
 def parse_freerouting_log(stdout: str) -> dict:
     """從完整 Freerouting log 抽 routed_fraction（'started with N ... (M unrouted)'）。"""
     start = re.search(r"started with (\d+) unrouted", stdout)
-    finals = re.findall(r"\((\d+) unrouted\)", stdout)
+    finals = re.findall(r"\((\d+) unrouted", stdout)   # 後面可能接 ' and N violations)'
     s = int(start.group(1)) if start else None
     f = int(finals[-1]) if finals else None
     rf = ((s - f) / s) if (s and f is not None and s > 0) else None
@@ -43,8 +44,8 @@ def parse_freerouting_log(stdout: str) -> dict:
 
 
 def _last_unrouted(stdout: str) -> int | None:
-    """最後一個 '(N unrouted)'——完整或被 timeout 砍斷的 log 都適用。"""
-    finals = re.findall(r"\((\d+) unrouted\)", stdout)
+    """最後一個 '(N unrouted...'——含 '(N unrouted)' 與 '(N unrouted and M violations)' 兩式。"""
+    finals = re.findall(r"\((\d+) unrouted", stdout)
     return int(finals[-1]) if finals else None
 
 
@@ -62,18 +63,27 @@ def run_freerouting(dsn_path: str, ses_path: str, jar: str = "/content/freerouti
     """
     if os.path.exists(ses_path):
         os.remove(ses_path)
-    base = [java_bin(), "-jar", jar, "-de", dsn_path, "-do", ses_path, "-mp", str(max_passes)]
-    cmd = (["xvfb-run", "-a"] + base) if headless else base
-    # start_new_session → 可整個 process group 砍掉（避免 timeout 後 java 殘留累積）
+    # -Djava.awt.headless=true：禁止 GUI（否則 Windows 桌面上某些板會彈對話框卡死）
+    base = [java_bin(), "-Djava.awt.headless=true", "-jar", jar,
+            "-de", dsn_path, "-do", ses_path, "-mp", str(max_passes)]
+    # Linux 無顯示需 xvfb-run；Windows/有顯示則直接跑（自動偵測 xvfb-run 是否存在）
+    use_xvfb = headless and shutil.which("xvfb-run") is not None
+    cmd = (["xvfb-run", "-a"] + base) if use_xvfb else base
+    posix = os.name == "posix"
+    # 強制 UTF-8 解碼 Freerouting 輸出（Windows 預設 cp950 會被 banner 的框線字元打亂、
+    # 吃掉後面的 '(N unrouted)' → 解析不到 → 誤判失敗）
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, start_new_session=True)
+                            encoding="utf-8", errors="replace", start_new_session=posix)
     try:
         out, err = proc.communicate(timeout=timeout)
         timed_out = False
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-        except ProcessLookupError:
+            if posix:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)   # 整個 process group
+            else:
+                proc.kill()
+        except (ProcessLookupError, OSError):
             pass
         out, err = proc.communicate()                 # 收回 timeout 前已產生的 stdout
         timed_out = True

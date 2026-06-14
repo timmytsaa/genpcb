@@ -14,3 +14,6 @@ wandb/
 
 # Notebook
 .ipynb_checkpoints/
+
+# 本機 Freerouting jar（57MB，不進版控）
+tools/
