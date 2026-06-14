@@ -96,9 +96,14 @@ def routing_reward(board: Board, jar: str = "/content/freerouting.jar", workdir:
 
     total = total_connections(board) or 1
     unrouted = _last_unrouted(out)
-    if unrouted is None:                              # 連一個 pass 都沒跑完 → 真失敗
+    if unrouted is None:
+        if timed_out:
+            # Freerouting 有跑但連 pass 1 都沒完成 → 極難佈 → rf=0（有效低分，非排除）
+            return {"ok": True, "routed_fraction": 0.0, "reward": 0.0, "total": total,
+                    "unrouted": total, "timed_out": True, "n_wires": 0, "n_vias": 0}
+        # 非 timeout 卻無任何進度 → env/DSN 錯 → None（排除，resume 重試）
         return {"ok": False, "routed_fraction": None, "reward": fail_reward,
-                "timed_out": timed_out, "stdout_tail": out[-400:], "stderr": err[-400:]}
+                "timed_out": False, "stdout_tail": out[-400:], "stderr": err[-400:]}
     rf = max(0.0, (total - unrouted) / total)
     g = parse_ses_geometry(open(spath).read()) if os.path.exists(spath) else {"wires": [], "vias": []}
     return {"ok": True, "routed_fraction": rf, "reward": rf, "total": total, "unrouted": unrouted,
