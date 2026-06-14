@@ -24,17 +24,25 @@ from genpcb.data.procedural import FAMILIES, generate_board
 from genpcb.surrogate.features import board_to_graph, board_to_raster
 
 
-def build_dataset(n_netlists: int, out_dir: str, label_fn: Callable,
-                  sa_steps: int = 2500, seed0: int = 0, raster_size: int = 64) -> list[dict]:
-    """產 n_netlists × 8 個樣本，每個存 .npz（x/edge_index/raster/routed_fraction）+ manifest.jsonl。"""
+def build_dataset(n_netlists: int, out_dir: str, label_fn: Callable, sa_steps: int = 2500,
+                  seed0: int = 0, raster_size: int = 64, verbose: bool = True) -> list[dict]:
+    """產 n_netlists × 8 個樣本，每個存 .npz（x/edge_index/raster/routed_fraction）+ manifest.jsonl。
+
+    verbose：每板印進度（Freerouting 慢，無進度會像當機）。斷點續跑：已存的 .npz 跳過。
+    """
     os.makedirs(out_dir, exist_ok=True)
     manifest = []
+    total = n_netlists * 8
+    done = 0
+    if verbose:
+        print(f"[build_dataset] {n_netlists} netlists × 8 = {total} 板 → {out_dir}", flush=True)
     for i in range(n_netlists):
         fam = FAMILIES[i % len(FAMILIES)]
         anchor = sa_place(generate_board(fam, seed=seed0 + i), steps=sa_steps, seed=seed0 + i)
         for variant, bv in quality_spectrum(anchor, seed=seed0 + i):
             sid = f"{fam}_{seed0 + i}_{variant}"
             npz_path = os.path.join(out_dir, sid + ".npz")
+            done += 1
             if os.path.exists(npz_path):                      # 斷點續跑：跳過已標註者
                 rf = float(np.load(npz_path)["routed_fraction"])
                 rf = None if rf < 0 else rf
@@ -42,12 +50,16 @@ def build_dataset(n_netlists: int, out_dir: str, label_fn: Callable,
                     "id": sid, "family": fam, "netlist_id": f"{fam}_{seed0 + i}",
                     "variant": variant, "routed_fraction": rf, "n_components": len(bv.components),
                 })
+                if verbose:
+                    print(f"[{done}/{total}] {sid}: skip (已存 rf={rf})", flush=True)
                 continue
             label = label_fn(bv)
             rf = label["routed_fraction"] if isinstance(label, dict) else label
             g, r = board_to_graph(bv), board_to_raster(bv, size=raster_size)
             np.savez(npz_path, x=g["x"], edge_index=g["edge_index"], raster=r,
                      routed_fraction=np.float32(rf if rf is not None else -1.0))
+            if verbose:
+                print(f"[{done}/{total}] {sid}: rf={rf}", flush=True)
             manifest.append({
                 "id": sid, "family": fam, "netlist_id": f"{fam}_{seed0 + i}",
                 "variant": variant, "routed_fraction": rf, "n_components": len(bv.components),
