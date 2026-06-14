@@ -7,7 +7,8 @@
 佈線）需 KiCad 環境驗證，尚未做（見 docs/review-repair-import.md P0）。
 """
 
+from genpcb.kicad.dsn import board_to_dsn, parse_ses_routed_fraction
 from genpcb.kicad.read import kicad_pcb_to_board
 from genpcb.kicad.write import board_to_kicad_pcb
 
-__all__ = ["board_to_kicad_pcb", "kicad_pcb_to_board"]
+__all__ = ["board_to_kicad_pcb", "kicad_pcb_to_board", "board_to_dsn", "parse_ses_routed_fraction"]
