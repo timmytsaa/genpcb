@@ -99,6 +99,8 @@ def main():
     ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--hidden", type=int, default=64)
+    ap.add_argument("--lam", type=float, default=1.0, help="同組 pairwise ranking 權重")
+    ap.add_argument("--margin", type=float, default=0.05, help="ranking margin")
     ap.add_argument("--out", default="experiments/surrogate_a.pt")
     args = ap.parse_args()
 
@@ -114,28 +116,41 @@ def main():
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = nn.MSELoss()
 
-    best = float("inf")
+    # 以 netlist 分組訓練：MSE + 同組 pairwise margin ranking（直攻 grouped Spearman、
+    # 對齊 GRPO group-relative advantage，placement-routing-checker §5）
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for s in tr:
+        groups[s["netlist_id"]].append(s)
+    group_list = list(groups.values())
+
+    best = -1.0
     for ep in range(1, args.epochs + 1):
         model.train()
-        random.shuffle(tr)
+        random.shuffle(group_list)
         opt.zero_grad()
         total = 0.0
-        for i, s in enumerate(tr, 1):
-            pred = model(s["x"], s["edge_index"], s["raster"])
-            loss = loss_fn(pred, torch.tensor(s["y"], dtype=torch.float32))
+        for gi, grp in enumerate(group_list, 1):
+            preds = torch.stack([model(s["x"], s["edge_index"], s["raster"]) for s in grp])
+            ys = torch.tensor([s["y"] for s in grp], dtype=torch.float32)
+            mse = loss_fn(preds, ys)
+            # 同組 pairwise：y_i > y_j 時要求 pred_i > pred_j + margin
+            mask = (ys.unsqueeze(1) > ys.unsqueeze(0) + 1e-3).float()
+            rank = (torch.relu(args.margin - (preds.unsqueeze(1) - preds.unsqueeze(0))) * mask).sum() / mask.sum().clamp(min=1)
+            loss = mse + args.lam * rank
             loss.backward()
             total += float(loss)
-            if i % 8 == 0 or i == len(tr):          # mini-batch via 梯度累積
+            if gi % 4 == 0 or gi == len(group_list):
                 opt.step(); opt.zero_grad()
         if ep % 5 == 0 or ep == 1:
             mae, sp, gsp = evaluate(model, va)
-            print(f"ep{ep:3d} train_mse {total/len(tr):.4f} | val MAE {mae:.3f} "
+            print(f"ep{ep:3d} loss {total/len(group_list):.4f} | val MAE {mae:.3f} "
                   f"Spearman {sp:.3f} grouped {gsp:.3f}", flush=True)
-            if mae < best:
-                best = mae
+            if not np.isnan(gsp) and gsp > best:    # 以 grouped Spearman（驗收指標）選最佳
+                best = gsp
                 os.makedirs(os.path.dirname(args.out), exist_ok=True)
                 torch.save(model.state_dict(), args.out)
-    print(f"[surrogate] best val MAE {best:.3f} -> {args.out}")
+    print(f"[surrogate] best grouped Spearman {best:.3f} -> {args.out}")
     print("驗收 acceptance: grouped Spearman >= 0.85 才准進 GRPO 迴圈（樣本多時才可靠）")
 
 
