@@ -59,8 +59,9 @@ def routing_reward(board: Board, jar: str = "/content/freerouting.jar", workdir:
     log = parse_freerouting_log(out)
     rf = log["routed_fraction"]
     if not ok or rf is None:
-        return {"ok": False, "routed_fraction": 0.0, "reward": fail_reward,
-                "stderr": err[-400:], **log}
+        # routing 失敗 → routed_fraction=None（label 未知，存 -1 並由 resume 重試）
+        return {"ok": False, "routed_fraction": None, "reward": fail_reward,
+                "stdout_tail": out[-400:], "stderr": err[-400:]}
     with open(spath) as f:
         g = parse_ses_geometry(f.read())
     return {"ok": True, "routed_fraction": rf, "reward": rf,   # v0：reward=routed_fraction

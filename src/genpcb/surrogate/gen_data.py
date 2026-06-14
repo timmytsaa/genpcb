@@ -43,16 +43,18 @@ def build_dataset(n_netlists: int, out_dir: str, label_fn: Callable, sa_steps: i
             sid = f"{fam}_{seed0 + i}_{variant}"
             npz_path = os.path.join(out_dir, sid + ".npz")
             done += 1
-            if os.path.exists(npz_path):                      # 斷點續跑：跳過已標註者
-                rf = float(np.load(npz_path)["routed_fraction"])
-                rf = None if rf < 0 else rf
-                manifest.append({
-                    "id": sid, "family": fam, "netlist_id": f"{fam}_{seed0 + i}",
-                    "variant": variant, "routed_fraction": rf, "n_components": len(bv.components),
-                })
+            if os.path.exists(npz_path):                      # 斷點續跑：只跳過「成功」的，失敗(-1)重試
+                prev = float(np.load(npz_path)["routed_fraction"])
+                if prev >= 0:
+                    manifest.append({
+                        "id": sid, "family": fam, "netlist_id": f"{fam}_{seed0 + i}",
+                        "variant": variant, "routed_fraction": prev, "n_components": len(bv.components),
+                    })
+                    if verbose:
+                        print(f"[{done}/{total}] {sid}: skip (已存 rf={prev:.3f})", flush=True)
+                    continue
                 if verbose:
-                    print(f"[{done}/{total}] {sid}: skip (已存 rf={rf})", flush=True)
-                continue
+                    print(f"[{done}/{total}] {sid}: 重試 (前次失敗)", flush=True)
             label = label_fn(bv)
             rf = label["routed_fraction"] if isinstance(label, dict) else label
             g, r = board_to_graph(bv), board_to_raster(bv, size=raster_size)
