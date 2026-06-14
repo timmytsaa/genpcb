@@ -7,10 +7,26 @@ routability surrogate，**不直接進 GRPO inner loop**（那要 surrogate）�
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 
 from genpcb.data.procedural import Board
-from genpcb.kicad.dsn import board_to_dsn, parse_ses_routed_fraction
+from genpcb.kicad.dsn import board_to_dsn
+from genpcb.kicad.viz import parse_ses_geometry
+
+
+def parse_freerouting_log(stdout: str) -> dict:
+    """從 Freerouting stdout 抽權威的 routed_fraction。
+
+    log 例：'started with 46 unrouted nets, ... final score: 719.36 (26 unrouted)'
+    → routed_fraction = (46-26)/46。這是 Freerouting 自己的連線級計數，比解析 SES 幾何可靠。
+    """
+    start = re.search(r"started with (\d+) unrouted", stdout)
+    finals = re.findall(r"\((\d+) unrouted\)", stdout)
+    s = int(start.group(1)) if start else None
+    f = int(finals[-1]) if finals else None
+    rf = ((s - f) / s) if (s and f is not None and s > 0) else None
+    return {"unrouted_start": s, "unrouted_final": f, "routed_fraction": rf}
 
 
 def run_freerouting(dsn_path: str, ses_path: str, jar: str = "/content/freerouting.jar",
@@ -40,11 +56,12 @@ def routing_reward(board: Board, jar: str = "/content/freerouting.jar", workdir:
     with open(dpath, "w") as f:
         f.write(dsn)
     ok, out, err = run_freerouting(dpath, spath, jar=jar, max_passes=max_passes)
-    if not ok:
-        return {"ok": False, "routed_fraction": 0.0, "reward": fail_reward, "stderr": err[-400:]}
+    log = parse_freerouting_log(out)
+    rf = log["routed_fraction"]
+    if not ok or rf is None:
+        return {"ok": False, "routed_fraction": 0.0, "reward": fail_reward,
+                "stderr": err[-400:], **log}
     with open(spath) as f:
-        ses = f.read()
-    m = parse_ses_routed_fraction(dsn, ses)
-    m["ok"] = True
-    m["reward"] = m["routed_fraction"]    # v0：先用 routed_fraction；之後可減 via/線長懲罰
-    return m
+        g = parse_ses_geometry(f.read())
+    return {"ok": True, "routed_fraction": rf, "reward": rf,   # v0：reward=routed_fraction
+            "n_wires": len(g["wires"]), "n_vias": len(g["vias"]), **log}

@@ -7,8 +7,6 @@
 
 from __future__ import annotations
 
-import re
-
 from genpcb.data.procedural import Board
 from genpcb.kicad.footprints import pads_for
 
@@ -90,19 +88,24 @@ def board_to_dsn(board: Board, name: str = "genpcb", width_um: int = 250, cleara
 
 
 def parse_ses_routed_fraction(dsn_text: str, ses_text: str) -> dict:
-    """比對 DSN 宣告的連線總數 vs SES 佈出的 wire/via，估 routed_fraction。
+    """SES 的 net 級佈線估計（用 sexp parser，非字串比對）。
 
-    SES 的 (wire (net "X") ...) 段落代表佈通的連線。粗估：有 wire 的 net 比例。
-    精確 routed_fraction（unconnected ratsnest）需 KiCad 匯回後算；此為快速代理。
+    注意：權威的連線級 routed_fraction 應取自 Freerouting log
+    （route.parse_freerouting_log）；此處為 SES 幾何的輔助統計。
     """
-    dsn_nets = set(re.findall(r'\(net "([^"]+)"', dsn_text))
-    routed_nets = set(re.findall(r'\(net "([^"]+)"', ses_text))   # SES wire 段也用 (net "..")
-    routed_nets &= dsn_nets
-    n = len(dsn_nets) or 1
+    from genpcb.kicad.sexp import parse, walk
+    try:
+        tree = parse(ses_text)
+    except Exception:
+        return {"routed_fraction_ses": None, "n_wires": 0, "n_vias": 0}
+    nets = walk(tree, "net")
+    routed = sum(1 for nt in nets
+                 if any(isinstance(c, list) and c and c[0] == "wire" for c in nt))
+    n = len(nets) or 1
     return {
-        "n_nets": len(dsn_nets),
-        "n_routed_nets": len(routed_nets),
-        "routed_fraction": len(routed_nets) / n,
-        "n_wires": ses_text.count("(wire "),
-        "n_vias": ses_text.count("(via "),
+        "n_nets_out": len(nets),
+        "n_routed_nets": routed,
+        "routed_fraction_ses": routed / n,
+        "n_wires": len(walk(tree, "wire")),
+        "n_vias": len(walk(tree, "via")),
     }
