@@ -25,10 +25,13 @@ from genpcb.surrogate.features import board_to_graph, board_to_raster
 
 
 def build_dataset(n_netlists: int, out_dir: str, label_fn: Callable, sa_steps: int = 2500,
-                  seed0: int = 0, raster_size: int = 64, verbose: bool = True) -> list[dict]:
+                  seed0: int = 0, raster_size: int = 64, verbose: bool = True,
+                  use_sa: bool = False) -> list[dict]:
     """產 n_netlists × 8 個樣本，每個存 .npz（x/edge_index/raster/routed_fraction）+ manifest.jsonl。
 
-    verbose：每板印進度（Freerouting 慢，無進度會像當機）。斷點續跑：已存的 .npz 跳過。
+    use_sa=False（預設）：用程序化擺位（鋪得開、佈得通、不卡 Freerouting）當基準。
+      SA 最小化 HPWL 會 over-pack → congestion 爆 → Freerouting 卡死，故預設關閉。
+    verbose：每板印進度。斷點續跑：成功的 .npz 跳過、失敗(-1)的重試。
     """
     os.makedirs(out_dir, exist_ok=True)
     manifest = []
@@ -38,7 +41,8 @@ def build_dataset(n_netlists: int, out_dir: str, label_fn: Callable, sa_steps: i
         print(f"[build_dataset] {n_netlists} netlists × 8 = {total} 板 → {out_dir}", flush=True)
     for i in range(n_netlists):
         fam = FAMILIES[i % len(FAMILIES)]
-        anchor = sa_place(generate_board(fam, seed=seed0 + i), steps=sa_steps, seed=seed0 + i)
+        base_board = generate_board(fam, seed=seed0 + i)
+        anchor = sa_place(base_board, steps=sa_steps, seed=seed0 + i) if use_sa else base_board
         for variant, bv in quality_spectrum(anchor, seed=seed0 + i):
             sid = f"{fam}_{seed0 + i}_{variant}"
             npz_path = os.path.join(out_dir, sid + ".npz")

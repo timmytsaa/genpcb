@@ -30,7 +30,7 @@ def parse_freerouting_log(stdout: str) -> dict:
 
 
 def run_freerouting(dsn_path: str, ses_path: str, jar: str = "/content/freerouting.jar",
-                    max_passes: int = 5, timeout: int = 180, headless: bool = True) -> tuple[bool, str, str]:
+                    max_passes: int = 5, timeout: int = 90, headless: bool = True) -> tuple[bool, str, str]:
     """跑 Freerouting。回傳 (是否產出 ses, stdout, stderr)。
 
     旗標 -de/-do/-mp 為 Freerouting core；若版本不同，依其 --help 調整本函式。
