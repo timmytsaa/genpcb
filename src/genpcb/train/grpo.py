@@ -15,7 +15,7 @@ from genpcb.config import load_config
 from genpcb.data.procedural import FAMILIES, generate_board
 from genpcb.data.serialize import board_to_dsl, dsl_to_sft_example
 from genpcb.models.adapter import ModelAdapter
-from genpcb.rewards import reward_from_completion, shaped_reward_from_completion
+from genpcb.rewards import _board_from_completion, reward_from_completion, shaped_reward_from_completion
 
 
 def make_reward_fn(weights: dict, parse_fail: float = -100.0, shaped: bool = True):
@@ -31,6 +31,29 @@ def make_reward_fn(weights: dict, parse_fail: float = -100.0, shaped: bool = Tru
     else:
         def reward_fn(prompts, completions, **_):
             return [reward_from_completion(p, c, weights, parse_fail) for p, c in zip(prompts, completions)]
+    return reward_fn
+
+
+def make_surrogate_reward_fn(surrogate_path: str, weights: dict | None = None,
+                             hidden: int = 64, parse_fail: float = -10.0):
+    """GRPO 即時 reward：valid completion → surrogate routability reward；malformed → floor。
+
+    surrogate 推理純 CPU、~ms，可進 GRPO inner loop。真值靠 routing_reward 背景 audit（DAgger）。
+    """
+    from genpcb.rewards.surrogate import load_surrogate, surrogate_reward
+    model = load_surrogate(surrogate_path, hidden=hidden)
+
+    def reward_fn(prompts, completions, **_):
+        out = []
+        for p, c in zip(prompts, completions):
+            try:
+                board = _board_from_completion(p, c)
+            except ValueError:
+                out.append(parse_fail)
+                continue
+            out.append(surrogate_reward(board, model, weights)[0])
+        return out
+
     return reward_fn
 
 
